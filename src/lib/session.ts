@@ -15,7 +15,7 @@ function sessionOptions(): SessionOptions {
   }
   return {
     password,
-    cookieName: "flow_clone_session",
+    cookieName: "unseen_docs_session",
     cookieOptions: {
       httpOnly: true,
       sameSite: "lax",

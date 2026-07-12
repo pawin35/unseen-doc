@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | Flow Clone",
-    default: "Flow Clone",
+    template: "%s | Unseen Docs",
+    default: "Unseen Docs",
   },
   description: "ระบบออกเอกสารธุรกิจที่ทุกคนเข้าถึงได้",
 };

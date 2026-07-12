@@ -49,7 +49,7 @@ npx tsc --noEmit       # typecheck (not wired to a script)
 
 ## Conventions specific to this repo
 
-- All UI/output text is **Thai** (`lang="th"`), FlowAccount vocabulary; dates render CE `dd/MM/yyyy`; timezone is Asia/Bangkok everywhere (use `Intl.DateTimeFormat` with an explicit `timeZone`).
+- All UI/output text is **Thai** (`lang="th"`), standard Thai tax-invoice vocabulary; dates render CE `dd/MM/yyyy`; timezone is Asia/Bangkok everywhere (use `Intl.DateTimeFormat` with an explicit `timeZone`).
 - The template editor is a plain `<textarea>` **by design** (screen-reader preference over a code editor like Monaco).
 - Uploads (logo/signature) live under `DATA_DIR`; served through `src/app/api/uploads/[...path]/route.ts`, embedded as data URIs at render time.
 - pdfjs pitfall: `getDocument({data})` **detaches** the buffer you pass — always `.slice()`. Reference PDFs decompose `ำ` into `ํ`+`า` — normalize before text comparison.

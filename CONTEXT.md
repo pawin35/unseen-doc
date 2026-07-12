@@ -1,6 +1,6 @@
 # CONTEXT — Ubiquitous Language
 
-Glossary of domain terms for the accessible FlowAccount clone. Terms are used exactly as defined here in code, UI, and conversation. Thai UI labels follow FlowAccount vocabulary.
+Glossary of domain terms for this accessible Thai business-document system. Terms are used exactly as defined here in code, UI, and conversation. Thai UI labels follow standard Thai tax-invoice vocabulary.
 
 ## Documents
 

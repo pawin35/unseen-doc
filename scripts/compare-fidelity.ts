@@ -1,5 +1,5 @@
 // Fidelity check: renders the seeded example quotation (and derived variants)
-// through the real pipeline and compares each against its FlowAccount reference
+// through the real pipeline and compares each against its reference
 // PDF. Every scenario runs text-layer assertions (verifiable without sight) plus
 // a per-page pixel diff. Run with: npm run fidelity
 import "dotenv/config";
@@ -41,7 +41,7 @@ const REMARK_WHT = "ราคาดังกล่าวได้มีการ
 const REMARK_NO_WHT = "ราคาดังกล่าวยังไม่รวมภาษีหัก ณ ที่จ่าย 1%";
 const REMARK_LONG = [
   "ราคาดังกล่าวยังไม่รวมภาษีหัก ณ ที่จ่าย 1% และตอนนี้เรากำลังทดสอบหมายเหตุที่ยาวมากๆ จนคิดว่าน่าจะใช้พื้นที่หลายบรรทัด",
-  "1. ถ้าสิ่งนี้ใช้ได้เราจะไม่ต้องใช้ flow account",
+  "1. ถ้าสิ่งนี้ใช้ได้เราจะไม่ต้องเสียค่าโปรแกรมบัญชี",
   "2. ถ้าสิ่งนี้ใช้ได้เราจะประหยัดตัง",
   "3. ถ้าสิ่งนี้ใช้ได้เราจะหาเงินได้",
   "4. ถ้าสิ่งนี้ใช้ได้เราจะมีความสุข",
@@ -103,7 +103,7 @@ const SCENARIOS: Scenario[] = [
   },
   {
     // Whole-row pagination (user decision): rows never split mid-cell, so this
-    // 11-row stress doc uses 3 pages where FlowAccount's mid-row split fits 2.
+    // 11-row stress doc uses 3 pages where the reference's mid-row split fits 2.
     // The reference PDF has 2 pages; we assert our own correct 3-page output and
     // only visually compare the pages that line up (page 1). See ADR 0005.
     name: "long",
@@ -119,7 +119,7 @@ const SCENARIOS: Scenario[] = [
       "หมายเหตุ",
       "1,100,000.00",
       "(หนึ่งล้านหนึ่งแสนบาทถ้วน)",
-      "flow account",
+      "โปรแกรมบัญชี",
       "หน้าที่ 1/3",
       "หน้าที่ 3/3",
     ],

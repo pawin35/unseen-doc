@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-The user is blind and must be able to read and edit document templates as code with a screen reader. The output PDF must visually match FlowAccount's real output (`reference/example_qt.pdf`) for identical input, on A4, in Thai (CS ChatThai), including complex Thai line breaking. Alternatives considered: Typst (clean source but hand-translating FlowAccount's layout pixel-for-pixel is hard and it's a niche language), @react-pdf/pdfmake (weak Thai line breaking, limited layout primitives), LaTeX (heavyweight, unpleasant source).
+The user is blind and must be able to read and edit document templates as code with a screen reader. The output PDF must visually match the reference document (`reference/example_qt.pdf`) for identical input, on A4, in Thai (CS ChatThai), including complex Thai line breaking. Alternatives considered: Typst (clean source but hand-translating the reference layout pixel-for-pixel is hard and it's a niche language), @react-pdf/pdfmake (weak Thai line breaking, limited layout primitives), LaTeX (heavyweight, unpleasant source).
 
 ## Decision
 

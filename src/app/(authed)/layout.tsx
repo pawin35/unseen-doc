@@ -13,7 +13,7 @@ export default async function AuthedLayout({
         ข้ามไปยังเนื้อหาหลัก
       </a>
       <header className="app-header">
-        <span className="brand">Flow Clone</span>
+        <span className="brand">Unseen Docs</span>
         <nav aria-label="เมนูหลัก" className="app-nav">
           <NavLinks />
         </nav>
