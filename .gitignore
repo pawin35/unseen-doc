@@ -42,6 +42,10 @@ yarn-error.log*
 # fidelity comparison output
 /scratch/
 
+# reference assets (FlowAccount-generated PDFs + real signature/logo) — kept
+# locally for `npm run fidelity`/seed, never committed
+/reference/
+
 # vercel
 .vercel
 
