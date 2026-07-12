@@ -1,0 +1,12 @@
+node_modules
+.next
+data
+data-docker
+scratch
+reference
+.git
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose.yml

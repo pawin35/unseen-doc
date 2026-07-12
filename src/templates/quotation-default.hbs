@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>{{doc.typeLabel}} {{doc.number}}</title>
+<style>
+  /* แบบฟอร์มค่าเริ่มต้น (ตาม FlowAccount) — ขนาดกระดาษ A4 ฟอนต์ CS ChatThai ขนาดกลาง
+     ฟอนต์ถูกฝังให้อัตโนมัติ (@font-face "CS ChatThai") โดยระบบก่อนพิมพ์
+
+     การแบ่งหน้า: เนื้อหาถูกเรนเดอร์เป็นสายเดียวก่อน จากนั้นสคริปต์ท้ายไฟล์วัดความสูง
+     แล้วสร้าง <div class="page"> ขนาด A4 ทีละหน้า พร้อมสำเนาหัวเอกสารทุกหน้า
+     (Chromium แบบ headless ไม่ทำซ้ำ <thead> ให้ จึงต้องแบ่งเองด้วย JS)
+     บล็อกลายเซ็นวางไว้ล่างสุดของหน้าสุดท้าย และเลข "หน้าที่ N/M" เมื่อมีหลายหน้า */
+  :root {
+    --accent: #f49739;        /* ส้ม FlowAccount (วัดจากเอกสารต้นฉบับ) */
+    --text: #000000;
+    --muted-line: #d9d9d9;
+    --font-size-body: 15px;   /* ขนาด "กลาง (ค่าเริ่มต้น)" = 11.25pt */
+    --margin-x: 12.7mm;
+    --content-w: calc(210mm - 2 * 12.7mm);
+  }
+
+  @page { size: A4; margin: 0; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    font-family: "CS ChatThai", sans-serif;
+    font-size: var(--font-size-body);
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  /* สามเหลี่ยมส้มมุมขวาบน — fixed จึงปรากฏทุกหน้าที่พิมพ์ (เยื้องตามต้นฉบับ) */
+  .corner {
+    position: fixed;
+    top: 3.7mm; right: 6.3mm;
+    width: 0; height: 0;
+    border-top: 21.9mm solid var(--accent);
+    border-left: 19.7mm solid transparent;
+    z-index: 1;
+  }
+
+  /* หนึ่งหน้ากระดาษ A4 (สคริปต์สร้างทีละใบ; ระหว่างวัดผล #doc ใช้สไตล์เดียวกัน) */
+  .page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+  }
+  .page + .page { break-before: page; }
+
+  /* ---- หัวเอกสาร (สำเนาไว้ทุกหน้า) ---- */
+  .doc-header {
+    width: var(--content-w);
+    margin: 0 var(--margin-x);
+    padding-top: 10mm;
+  }
+
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8mm;
+  }
+
+  .seller { flex: 1 1 auto; }
+
+  .logo {
+    display: block;
+    height: 19mm;
+    width: auto;
+    margin-bottom: 1.5mm;
+  }
+
+  .customer-label {
+    color: var(--accent);
+    margin-top: 2.5mm;
+  }
+
+  .doc-meta {
+    flex: 0 0 86mm;
+    margin-top: 5mm;
+  }
+
+  .doc-meta h1 {
+    color: var(--accent);
+    font-size: 28px;
+    font-weight: normal;
+    text-align: center;
+    margin-right: 9.6mm;
+    margin-bottom: 3mm;
+  }
+
+  .meta {
+    width: 100%;
+    border-collapse: collapse;
+    border-top: 1px solid var(--muted-line);
+    border-bottom: 1px solid var(--muted-line);
+  }
+
+  .meta th, .meta td {
+    text-align: left;
+    font-weight: normal;
+    padding: 0;
+  }
+
+  .meta th {
+    color: var(--accent);
+    width: 30mm;
+    padding-left: 1mm;
+  }
+
+  /* ---- ตารางรายการ: หัวคอลัมน์ (.grid.head) + เนื้อ (.grid.items) ใช้คอลัมน์เดียวกัน ---- */
+  .grid {
+    width: var(--content-w);
+    margin: 0 var(--margin-x);
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .grid.head { margin-top: 2mm; }
+
+  .grid.head th {
+    border-top: 1px solid var(--text);
+    border-bottom: 1px solid var(--text);
+    font-weight: bold;
+    padding: 2.2mm 2mm 1.2mm 2mm;
+    text-align: center;
+  }
+
+  .grid th.col-price,
+  .grid th.col-disc,
+  .grid th.col-amount { text-align: right; }
+
+  .grid.items td {
+    padding: 1.2mm 2mm 2mm 2mm;
+    vertical-align: top;
+    border-bottom: 1px solid var(--muted-line);
+  }
+
+  .grid.items td.no { text-align: center; }
+  .grid.items td.qty { text-align: center; padding-left: 9mm; }
+  .grid.items td.num { text-align: right; }
+  .grid.items td.desc { white-space: pre-wrap; }
+
+  /* ---- ยอดรวม + หมายเหตุ ---- */
+  .tail { width: var(--content-w); margin: 0 var(--margin-x); }
+
+  .totals-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8mm;
+    margin-top: 1.1mm;
+  }
+
+  .baht-text {
+    flex: 1 1 40%;
+    padding-top: 10.4mm;
+  }
+
+  .totals {
+    flex: 0 0 95.2mm;
+    border-collapse: collapse;
+  }
+
+  .totals th {
+    color: var(--accent);
+    font-weight: normal;
+    text-align: right;
+    padding: 0.6mm 4mm 0.6mm 0;
+  }
+
+  .totals td { text-align: right; padding: 0.6mm 0; }
+  .totals td.unit { width: 5.7mm; text-align: right; padding-left: 1mm; }
+  .totals tr.rule th, .totals tr.rule td {
+    border-top: 1px solid var(--muted-line);
+    padding-top: 7.3mm;
+  }
+
+  /* หมายเหตุ: หัวข้อสีส้ม ข้อความสีดำ คงบรรทัดตามที่กรอก */
+  .remark { margin-top: 6.5mm; }
+  .remark-label { color: var(--accent); }
+  .remark-text { white-space: pre-wrap; }
+
+  /* ลายเซ็นท้ายกระดาษ (วางล่างสุดของหน้าสุดท้าย) */
+  .signatures {
+    position: absolute;
+    left: var(--margin-x); right: var(--margin-x); bottom: 16.5mm;
+    display: flex;
+    justify-content: space-between;
+    gap: 26mm;
+  }
+
+  .sig-block { flex: 0 0 86mm; }
+  .sig-block.approver { flex: 0 0 66mm; }
+
+  .sig-lines {
+    display: flex;
+    gap: 3mm;
+    margin-top: 23.9mm;
+  }
+
+  .sig-block.approver .sig-lines { margin-top: 0.4mm; }
+
+  .sig-line {
+    flex: 1 1 50%;
+    border-top: 1px solid var(--text);
+    text-align: center;
+    padding-top: 1mm;
+  }
+
+  .sig-image-area {
+    height: 18.9mm;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6mm;
+  }
+
+  .sig-image-area .signature-img {
+    max-height: 16mm;
+    max-width: 40mm;
+  }
+
+  .sig-image-area .sig-date {
+    flex: 1 1 50%;
+    margin-left: 7.2mm;
+    text-align: center;
+  }
+
+  /* เลขหน้า (เพิ่มโดยสคริปต์เมื่อมีมากกว่า 1 หน้า) */
+  .page-foot {
+    position: absolute;
+    left: var(--margin-x); bottom: 8mm;
+    color: var(--text);
+  }
+</style>
+</head>
+<body>
+  <div class="corner"></div>
+
+  <div id="doc" data-role="source">
+    <div class="doc-header">
+      <header class="top">
+        <div class="seller">
+          {{#if company.logoDataUri}}
+          <img class="logo" src="{{company.logoDataUri}}" alt="โลโก้ {{company.name}}">
+          {{/if}}
+          <p class="seller-name">{{company.name}}</p>
+          <p>{{company.address}}</p>
+          <p>เลขประจำตัวผู้เสียภาษี {{company.taxId}}</p>
+          {{#if company.phone}}<p>โทร. {{company.phone}}</p>{{/if}}
+
+          <p class="customer-label">ลูกค้า</p>
+          <p class="customer-name">{{customer.name}}</p>
+          <p>{{customer.address}}</p>
+          {{#if customer.taxId}}<p>เลขประจำตัวผู้เสียภาษี {{customer.taxId}}</p>{{/if}}
+        </div>
+
+        <div class="doc-meta">
+          <h1>{{doc.typeLabel}}</h1>
+          <table class="meta">
+            <tr><th scope="row">เลขที่</th><td>{{doc.number}}</td></tr>
+            <tr><th scope="row">วันที่</th><td>{{doc.date}}</td></tr>
+          </table>
+        </div>
+      </header>
+
+      <table class="grid head">
+        <colgroup>
+          <col style="width:6%"><col style="width:40%"><col style="width:10%">
+          <col style="width:20%"><col style="width:9%"><col style="width:15%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th scope="col" class="col-no">#</th>
+            <th scope="col" class="col-desc">รายละเอียด</th>
+            <th scope="col" class="col-qty">จำนวน</th>
+            <th scope="col" class="col-price">ราคาต่อหน่วย</th>
+            <th scope="col" class="col-disc">ส่วนลด</th>
+            <th scope="col" class="col-amount">มูลค่า</th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+
+    <table class="grid items">
+      <colgroup>
+        <col style="width:6%"><col style="width:40%"><col style="width:10%">
+        <col style="width:20%"><col style="width:9%"><col style="width:15%">
+      </colgroup>
+      <tbody>
+        {{#each lines}}
+        <tr>
+          <td class="no">{{no}}</td>
+          <td class="desc">{{description}}</td>
+          <td class="qty">{{qty}}{{#if unit}} {{unit}}{{/if}}</td>
+          <td class="num">{{unitPrice}}</td>
+          <td class="num">{{discount}}</td>
+          <td class="num">{{amount}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div class="tail">
+      <section class="totals-row">
+        <p class="baht-text">({{totals.bahtText}})</p>
+        <table class="totals">
+          <tr>
+            <th scope="row">รวมเป็นเงิน</th>
+            <td>{{totals.subtotal}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          {{#if totals.show.discount}}
+          <tr>
+            <th scope="row">ส่วนลด</th>
+            <td>{{totals.discount}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          <tr>
+            <th scope="row">มูลค่าหลังหักส่วนลด</th>
+            <td>{{totals.afterDiscount}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          {{/if}}
+          {{#if totals.show.vat}}
+          <tr>
+            <th scope="row">{{totals.vatLabel}}</th>
+            <td>{{totals.vat}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          {{/if}}
+          <tr class="grand">
+            <th scope="row">จำนวนเงินรวมทั้งสิ้น</th>
+            <td>{{totals.grandTotal}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          {{#if totals.show.wht}}
+          <tr class="rule">
+            <th scope="row">{{totals.whtLabel}}</th>
+            <td>{{totals.wht}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          <tr class="grand">
+            <th scope="row">ยอดชำระ</th>
+            <td>{{totals.payable}}</td>
+            <td class="unit">บาท</td>
+          </tr>
+          {{/if}}
+        </table>
+      </section>
+
+      {{#if doc.remark}}
+      <section class="remark">
+        <p class="remark-label">หมายเหตุ</p>
+        <p class="remark-text">{{doc.remark}}</p>
+      </section>
+      {{/if}}
+    </div>
+
+    <footer class="signatures">
+      <div class="sig-block">
+        <p>ในนาม {{signing.customerName}}</p>
+        <div class="sig-lines">
+          <p class="sig-line">ผู้สั่งซื้อสินค้า</p>
+          <p class="sig-line">วันที่</p>
+        </div>
+      </div>
+      <div class="sig-block approver">
+        <p>ในนาม {{signing.sellerName}}</p>
+        <div class="sig-image-area">
+          {{#if signing.showSignatureImage}}{{#if company.signatureDataUri}}
+          <img class="signature-img" src="{{company.signatureDataUri}}" alt="ลายเซ็นผู้อนุมัติ">
+          {{else}}
+          <span></span>
+          {{/if}}{{else}}
+          <span></span>
+          {{/if}}
+          <span class="sig-date">{{doc.date}}</span>
+        </div>
+        <div class="sig-lines">
+          <p class="sig-line">ผู้อนุมัติ</p>
+          <p class="sig-line">วันที่</p>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+  /* แบ่งหน้าเอง: วัดความสูงหัวเอกสาร/แต่ละแถว/ยอดรวม/ลายเซ็น แล้วบรรจุลง .page ทีละใบ
+     renderPdf รอจน [data-paginating] ถูกลบออกจาก <html> */
+  (function () {
+    var root = document.documentElement;
+    root.setAttribute("data-paginating", "");
+    function h(el) { return el.getBoundingClientRect().height; }
+    function paginate() {
+      try {
+        var MM = 96 / 25.4;
+        var PAGE = 297 * MM;
+        var FOOT = 14 * MM;        /* พื้นที่สงวนล่างสุดของหน้าที่ไม่ใช่หน้าสุดท้าย */
+        var SIG_BOTTOM = 16.5 * MM;
+        var doc = document.getElementById("doc");
+        if (!doc) return;
+        var header = doc.querySelector(".doc-header");
+        var itemsTbody = doc.querySelector(".grid.items tbody");
+        var tail = doc.querySelector(".tail");
+        var sig = doc.querySelector(".signatures");
+
+        var Hh = h(header);
+        var Ht = tail ? h(tail) : 0;
+        var Hs = sig ? h(sig) : 0;
+        var rows = itemsTbody ? Array.prototype.slice.call(itemsTbody.rows) : [];
+        var rowH = rows.map(h);
+
+        /* บรรจุแถวลงหน้า (งบต่อหน้า = สูง A4 ลบหัวเอกสารและพื้นที่ล่าง) */
+        var budgetMid = PAGE - Hh - FOOT;
+        var pages = [];
+        var cur = [], curH = 0;
+        for (var i = 0; i < rows.length; i++) {
+          if (cur.length && curH + rowH[i] > budgetMid) { pages.push(cur); cur = []; curH = 0; }
+          cur.push(rows[i]); curH += rowH[i];
+        }
+        pages.push(cur);
+
+        /* ยอดรวม+หมายเหตุ+ลายเซ็น ต้องพอดีเหนือลายเซ็นในหน้าสุดท้าย ไม่งั้นขึ้นหน้าใหม่ */
+        var tailIdx = pages.length - 1;
+        var lastRowsH = pages[tailIdx].reduce(function (a, r) { return a + h(r); }, 0);
+        var lastAvail = PAGE - Hh - (SIG_BOTTOM + Hs);
+        if (lastRowsH + Ht > lastAvail) { pages.push([]); tailIdx = pages.length - 1; }
+
+        var N = pages.length;
+
+        function colgroup() {
+          var cg = document.createElement("colgroup");
+          var w = ["6%", "40%", "10%", "20%", "9%", "15%"];
+          for (var k = 0; k < w.length; k++) {
+            var c = document.createElement("col"); c.style.width = w[k]; cg.appendChild(c);
+          }
+          return cg;
+        }
+
+        var frag = document.createDocumentFragment();
+        for (var p = 0; p < N; p++) {
+          var page = document.createElement("div");
+          page.className = "page";
+          page.appendChild(header.cloneNode(true));
+
+          var table = document.createElement("table");
+          table.className = "grid items";
+          table.appendChild(colgroup());
+          var tb = document.createElement("tbody");
+          for (var r = 0; r < pages[p].length; r++) tb.appendChild(pages[p][r]);
+          table.appendChild(tb);
+          page.appendChild(table);
+
+          if (p === tailIdx) {
+            if (tail) page.appendChild(tail);
+            if (sig) page.appendChild(sig);
+          }
+          if (N > 1) {
+            var f = document.createElement("div");
+            f.className = "page-foot";
+            f.textContent = "หน้าที่ " + (p + 1) + "/" + N;
+            page.appendChild(f);
+          }
+          frag.appendChild(page);
+        }
+
+        doc.innerHTML = "";
+        doc.removeAttribute("id");
+        doc.appendChild(frag);
+      } finally {
+        root.removeAttribute("data-paginating");
+      }
+    }
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(paginate, paginate);
+    } else {
+      paginate();
+    }
+  })();
+  </script>
+</body>
+</html>

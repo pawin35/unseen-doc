@@ -1,0 +1,171 @@
+// Domain vocabulary: see CONTEXT.md. Architectural rules: see docs/adr/.
+// Money is integer satang (*Satang), rates are basis points (*Bp, 700 = 7%),
+// quantities are integer thousandths (1500 = 1.5). Never Decimal/Float (ADR 0001).
+// "Enum" fields are String because SQLite has no enums; allowed values are
+// enforced by zod schemas in src/lib/domain.ts and must stay in sync.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Singleton row (id = 1): the seller profile.
+model Company {
+  id            Int      @id @default(1)
+  name          String
+  address       String
+  taxId         String
+  branchType    String   @default("HEAD_OFFICE") // HEAD_OFFICE | BRANCH
+  branchCode    String?
+  phone         String?
+  email         String?
+  logoPath      String? // relative to DATA_DIR/uploads
+  signaturePath String? // relative to DATA_DIR/uploads
+  updatedAt     DateTime @updatedAt
+}
+
+model Customer {
+  id            String     @id @default(cuid())
+  name          String
+  address       String
+  taxId         String?
+  branchType    String     @default("HEAD_OFFICE") // HEAD_OFFICE | BRANCH
+  branchCode    String?
+  contactPerson String?
+  phone         String?
+  email         String?
+  documents     Document[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([name])
+}
+
+// Shared core for all six document types (docType discriminator).
+model Document {
+  id        String   @id @default(cuid())
+  docType   String // QUOTATION | BILLING_NOTE | INVOICE | RECEIPT | PURCHASE_ORDER | GOODS_RECEIPT
+  docNumber String
+  issueDate DateTime // date-only semantics (midnight UTC of the Bangkok calendar date)
+  status    String   @default("DRAFT") // DRAFT | AWAITING | ACCEPTED | REJECTED
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // Customer Snapshot: copied at creation, editable per document, never synced back.
+  custName          String
+  custAddress       String
+  custTaxId         String?
+  custBranchType    String  @default("HEAD_OFFICE")
+  custBranchCode    String?
+  custContactPerson String?
+  custPhone         String?
+  custEmail         String?
+
+  // Signatory (ผู้ลงนาม) overrides for the signature block. null = use the
+  // party name (custName / company name). Part of the document snapshot.
+  custSignatoryName   String?
+  sellerSignatoryName String?
+  showSignatureImage  Boolean @default(true)
+
+  // Pricing configuration.
+  vatMode          String @default("NONE") // NONE | EXCLUSIVE | INCLUSIVE
+  vatRateBp        Int    @default(700)
+  whtRateBp        Int? // null = no withholding tax
+  docDiscountType  String @default("NONE") // NONE | AMOUNT | PERCENT
+  docDiscountValue Int    @default(0) // satang if AMOUNT, bp if PERCENT
+
+  // Computed totals, denormalized for list views and immutable print history.
+  subtotalSatang      Int
+  discountSatang      Int
+  afterDiscountSatang Int
+  vatSatang           Int
+  grandTotalSatang    Int
+  whtSatang           Int
+  payableSatang       Int
+  bahtText            String
+
+  // remark = หมายเหตุ printed on the document; notes = internal-only (บันทึกภายใน).
+  remark String?
+  notes  String?
+
+  // Template selection + pin (ADR 0004, supersedes 0003's pin-at-print).
+  // templateId = the Selected Template (default built-in), changeable while
+  // the document is a draft. templateVersionId = the frozen pin, written when
+  // the document is issued; null while a draft (renders the template's latest).
+  templateId        String?
+  template          Template?        @relation("SelectedTemplate", fields: [templateId], references: [id])
+  templateVersionId String?
+  templateVersion   TemplateVersion? @relation(fields: [templateVersionId], references: [id])
+
+  lines     DocumentLine[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([docType, docNumber])
+  @@index([docType, status])
+  @@index([issueDate])
+}
+
+model DocumentLine {
+  id              String   @id @default(cuid())
+  documentId      String
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  sortOrder       Int
+  description     String
+  qtyThousandths  Int
+  unit            String?
+  unitPriceSatang Int
+  discountType    String   @default("NONE") // NONE | AMOUNT | PERCENT
+  discountValue   Int      @default(0) // satang if AMOUNT, bp if PERCENT
+  lineTotalSatang Int
+
+  @@index([documentId, sortOrder])
+}
+
+model Template {
+  id              String           @id @default(cuid())
+  docType         String
+  name            String
+  isBuiltIn       Boolean          @default(false)
+  activeVersionId String?          @unique
+  activeVersion   TemplateVersion? @relation("ActiveVersion", fields: [activeVersionId], references: [id])
+  versions        TemplateVersion[] @relation("Versions")
+  documents       Document[]        @relation("SelectedTemplate")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@unique([docType, name])
+}
+
+// Immutable snapshot of template source (ADR 0003).
+model TemplateVersion {
+  id         String     @id @default(cuid())
+  templateId String
+  template   Template   @relation("Versions", fields: [templateId], references: [id], onDelete: Cascade)
+  versionNo  Int
+  source     String // full HTML document with Handlebars placeholders
+  createdAt  DateTime   @default(now())
+  documents  Document[]
+  activeOf   Template?  @relation("ActiveVersion")
+
+  @@unique([templateId, versionNo])
+}
+
+model NumberingSetting {
+  docType String @id
+  pattern String // e.g. "QT{YYYY}{MM}{DD}{NNNN}"
+  padding Int    @default(4)
+}
+
+model NumberingCounter {
+  docType   String
+  dateKey   String // "20260711" in Asia/Bangkok
+  lastValue Int    @default(0)
+
+  @@id([docType, dateKey])
+}
