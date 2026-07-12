@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    template: "%s | Unseen Docs",
-    default: "Unseen Docs",
+    template: "%s | Unseen Doc",
+    default: "Unseen Doc",
   },
   description: "ระบบออกเอกสารธุรกิจที่ทุกคนเข้าถึงได้",
 };

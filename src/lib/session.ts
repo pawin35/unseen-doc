@@ -15,7 +15,7 @@ function sessionOptions(): SessionOptions {
   }
   return {
     password,
-    cookieName: "unseen_docs_session",
+    cookieName: "unseen_doc_session",
     cookieOptions: {
       httpOnly: true,
       sameSite: "lax",
