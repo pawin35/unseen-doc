@@ -1,93 +1,106 @@
-# Unseen Doc — ระบบออกเอกสารธุรกิจที่ทุกคนเข้าถึงได้
+# Unseen Doc — an accessible Thai business-document generator
 
-ระบบออกเอกสารธุรกิจไทยที่เน้นการเข้าถึงด้วยโปรแกรมอ่านหน้าจอ (screen reader) ครอบคลุม
-ใบเสนอราคา (เฟสแรก), ข้อมูลกิจการ และฐานข้อมูลลูกค้า พร้อมแบบฟอร์มเอกสารที่
-**แก้ไขเป็นโค้ดได้** (HTML + Handlebars) บันทึกเป็นเวอร์ชัน และคืนค่าเริ่มต้นได้
+A screen-reader-first system for issuing Thai business documents: quotations (ใบเสนอราคา, phase 1),
+the company profile, and a customer database. Document forms are **editable as code**
+(HTML + Handlebars), versioned on every save, and restorable to the shipped default.
 
-- เอกสาร PDF ขนาด A4 ฟอนต์ CS ChatThai แบบ tagged (อ่านด้วย screen reader ได้)
-- ข้อมูลเดียวกัน ⇒ เอกสารหน้าตาตรงตามเอกสารอ้างอิงใน `reference/` (ตรวจด้วย `npm run fidelity`)
-- คำศัพท์ในโดเมนดู `CONTEXT.md`; การตัดสินใจเชิงสถาปัตยกรรมดู `docs/adr/`
+- Renders tagged A4 PDFs in the CS ChatThai font, so the output is readable with a screen reader.
+- Same data ⇒ same document: output is diffed against the reference PDFs in `reference/` (`npm run fidelity`).
+- Domain vocabulary lives in `CONTEXT.md`; architectural decisions in `docs/adr/`.
 
-## เริ่มใช้งาน (Windows / พัฒนา)
+The product UI and the printed documents are in Thai (standard Thai tax-invoice vocabulary);
+the code, comments, and docs are in English.
+
+## Getting started (Windows / development)
 
 ```powershell
 npm install
-npx playwright install chromium   # เบราว์เซอร์สำหรับสร้าง PDF
-copy .env.example .env            # แล้วแก้รหัสผ่านตามต้องการ
-npx prisma migrate dev            # สร้างฐานข้อมูล SQLite ใน data/
-npm run db:seed                   # ข้อมูลตั้งต้น + เอกสารตัวอย่าง
+npx playwright install chromium   # the browser used to render PDFs
+copy .env.example .env            # then set your own admin password / session secret
+npx prisma migrate dev            # creates the SQLite database in data/
+npm run db:seed                   # seed data + one example document
 npm run dev                       # http://localhost:3000
 ```
 
-เข้าสู่ระบบด้วย `ADMIN_USERNAME` / `ADMIN_PASSWORD` จาก `.env`
+Log in with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env` (a single admin; there is no user table).
 
-## คำสั่งที่ใช้บ่อย
+## Common commands
 
-| คำสั่ง | ทำอะไร |
+| Command | What it does |
 |---|---|
-| `npm run dev` | เซิร์ฟเวอร์พัฒนา |
-| `npm test` | ชุดทดสอบเครื่องคำนวณเงิน/ตัวอักษรบาท |
-| `npm run db:migrate` | สร้าง/ปรับ schema ฐานข้อมูล |
-| `npm run db:seed` | ข้อมูลตั้งต้น (รันซ้ำได้ ไม่ทับข้อมูลที่แก้แล้ว) |
-| `npm run fidelity` | เทียบเอกสารที่ระบบสร้างกับ `reference/example_qt.pdf` |
+| `npm run dev` | Development server |
+| `npm test` | Unit tests for the money engine and the baht-text speller |
+| `npm run lint` | ESLint |
+| `npm run db:migrate` | Create/apply database migrations |
+| `npm run db:seed` | Seed data (idempotent — safe to re-run) |
+| `npm run fidelity` | Render the seeded document plus variants and diff them against the reference PDFs |
+
+`npm run fidelity` expects the reference PDFs in `reference/`. That folder is **not committed**
+(third-party output and a real signature image), so the check only runs where those files are present locally.
 
 ## Docker
 
 ```powershell
-copy .env.docker.example .env.docker   # แก้รหัสผ่าน/secret
+copy .env.docker.example .env.docker   # set the password / secret
 docker compose up --build
 ```
 
-ข้อมูล (ฐานข้อมูล + ไฟล์อัปโหลด) อยู่ใน volume `./data-docker`
+The database and uploaded files live in the `./data-docker` volume.
 
-## สลับไป PostgreSQL
+## Switching to PostgreSQL
 
-1. เปลี่ยน `provider` ใน `prisma/schema.prisma` เป็น `postgresql`
-2. ติดตั้ง `@prisma/adapter-pg` และสลับ adapter ใน `src/lib/prisma.ts`
-3. ตั้ง `DATABASE_URL` เป็น connection string ของ Postgres แล้วรัน `prisma migrate dev`
+1. Change `provider` in `prisma/schema.prisma` to `postgresql`.
+2. Install `@prisma/adapter-pg` and swap the adapter in `src/lib/prisma.ts`.
+3. Point `DATABASE_URL` at your Postgres connection string and run `prisma migrate dev`.
 
-โค้ดไม่ใช้ SQL ดิบและไม่ใช้ type เฉพาะ SQLite (เงินเก็บเป็น integer สตางค์ — ADR 0001)
-จึงไม่ต้องแก้โค้ดส่วนอื่น
+No other code changes are needed: the codebase uses no raw SQL and no SQLite-specific types
+(money is stored as integer satang — ADR 0001).
 
-## แบบฟอร์มเอกสาร (template)
+## Document templates
 
-- แก้ไขที่เมนู "แบบฟอร์มเอกสาร" — โค้ดเป็น HTML + Handlebars ใน `<textarea>` ธรรมดา
-- บันทึกทุกครั้ง = เวอร์ชันใหม่ (เวอร์ชันเก่าไม่หาย) สร้างแบบฟอร์มใหม่ได้ด้วย "บันทึกเป็นแบบฟอร์มใหม่"
-- แต่ละเอกสารเลือกแบบฟอร์มได้เอง (ช่อง "แบบฟอร์มเอกสาร" ในฟอร์ม) — เปลี่ยนได้เฉพาะตอนเป็นเอกสารร่าง
-- เอกสารร่างใช้แบบฟอร์มเวอร์ชันล่าสุดเสมอ และ **ตรึงเวอร์ชันเมื่อออกเอกสาร** (ร่าง → รอตอบรับ); พิมพ์ซ้ำหลังออกเอกสารได้เหมือนเดิมทุกประการ
-- แบบฟอร์มค่าเริ่มต้นแก้ไขไม่ได้ แต่ "คืนค่าเริ่มต้น" จากไฟล์ `src/templates/quotation-default.hbs` ได้เสมอ
+- Edit them under "แบบฟอร์มเอกสาร" — the source is HTML + Handlebars in a plain `<textarea>`.
+- Every save creates a new version (old versions are never lost); "บันทึกเป็นแบบฟอร์มใหม่" forks a new template.
+- Each document picks its own template (the "แบบฟอร์มเอกสาร" field on the form) — changeable only while it is a draft.
+- A draft always renders the template's latest version. **Issuing the document (ร่าง → รอตอบรับ) freezes that
+  version**, so reprints of an issued document are byte-identical forever.
+- The built-in template is read-only, but "คืนค่าเริ่มต้น" always restores it from `src/templates/quotation-default.hbs`.
 
-### ตัวแปรที่ใช้ได้ในแบบฟอร์ม
+### Variables available in a template
 
-| ตัวแปร | ความหมาย |
+| Variable | Meaning |
 |---|---|
-| `{{doc.typeLabel}}` `{{doc.number}}` `{{doc.date}}` | ชนิดเอกสาร เลขที่ วันที่ (วว/ดด/ปปปป ค.ศ.) |
-| `{{company.name}}` `{{company.address}}` `{{company.taxId}}` `{{company.phone}}` | ผู้ออกเอกสาร |
-| `{{company.logoDataUri}}` `{{company.signatureDataUri}}` | รูปโลโก้/ลายเซ็น (ใส่ใน `src` ของ `<img>`) |
-| `{{customer.name}}` `{{customer.address}}` `{{customer.taxId}}` | ลูกค้า (สำเนาที่ตรึงกับเอกสาร) |
-| `{{#each lines}} … {{/each}}` | วนรายการ: `{{no}}` `{{description}}` `{{qty}}` `{{unit}}` `{{unitPrice}}` `{{discount}}` `{{amount}}` |
-| `{{totals.subtotal}}` `{{totals.discount}}` `{{totals.afterDiscount}}` | ยอดรวม/ส่วนลด (จัดรูปแบบแล้ว) |
-| `{{totals.vatLabel}}` `{{totals.vat}}` `{{totals.grandTotal}}` | ภาษีมูลค่าเพิ่ม/ยอดรวมทั้งสิ้น |
-| `{{totals.whtLabel}}` `{{totals.wht}}` `{{totals.payable}}` | หัก ณ ที่จ่าย/ยอดชำระ |
-| `{{totals.bahtText}}` | จำนวนเงินเป็นตัวอักษร เช่น หนึ่งแสนบาทถ้วน |
-| `{{totals.show.discount}}` `{{totals.show.vat}}` `{{totals.show.wht}}` | ใช้กับ `{{#if}}` เพื่อแสดงแถวเฉพาะเมื่อมีข้อมูล |
-| `{{signing.customerName}}` `{{signing.sellerName}}` | ชื่อผู้ลงนามท้ายเอกสาร (คืนค่าชื่อลูกค้า/กิจการเมื่อไม่กำหนดเอง) |
-| `{{signing.showSignatureImage}}` | ใช้กับ `{{#if}}` ควบคุมการแสดงรูปลายเซ็นที่บันทึกไว้ |
+| `{{doc.typeLabel}}` `{{doc.number}}` `{{doc.date}}` | Document type, number, and issue date (CE `dd/MM/yyyy`) |
+| `{{doc.remark}}` | Remark (หมายเหตุ) printed below the totals. Internal notes are never exposed to templates. |
+| `{{company.name}}` `{{company.address}}` `{{company.taxId}}` `{{company.phone}}` | The issuing company |
+| `{{company.logoDataUri}}` `{{company.signatureDataUri}}` | Logo / signature images (use as the `src` of an `<img>`) |
+| `{{customer.name}}` `{{customer.address}}` `{{customer.taxId}}` | Customer (the snapshot pinned to this document) |
+| `{{#each lines}} … {{/each}}` | Line items: `{{no}}` `{{description}}` `{{qty}}` `{{unit}}` `{{unitPrice}}` `{{discount}}` `{{amount}}` |
+| `{{totals.subtotal}}` `{{totals.discount}}` `{{totals.afterDiscount}}` | Subtotal / discount (pre-formatted) |
+| `{{totals.vatLabel}}` `{{totals.vat}}` `{{totals.grandTotal}}` | VAT and grand total |
+| `{{totals.whtLabel}}` `{{totals.wht}}` `{{totals.payable}}` | Withholding tax and the payable amount |
+| `{{totals.bahtText}}` | The amount spelled out in Thai, e.g. หนึ่งแสนบาทถ้วน |
+| `{{totals.show.discount}}` `{{totals.show.vat}}` `{{totals.show.wht}}` | Use with `{{#if}}` to show a row only when it applies |
+| `{{signing.customerName}}` `{{signing.sellerName}}` | Names printed in the signature block (default to the customer / company name) |
+| `{{signing.showSignatureImage}}` | Use with `{{#if}}` to control whether the stored signature image prints |
 
-ฟอนต์ "CS ChatThai" ถูกฝังให้อัตโนมัติ — ใช้ `font-family: "CS ChatThai"` ได้ทันที
-(น้ำหนัก 300/400/700 และ "CS ChatThai UI" อีกตระกูล)
+The "CS ChatThai" font is embedded automatically — just use `font-family: "CS ChatThai"`
+(weights 300/400/700, plus the "CS ChatThai UI" family).
 
-## โครงสร้างสำคัญ
+A template that needs more than one page paginates itself with a small client-side script and marks
+`<html data-paginating>` while it runs; the PDF renderer waits for that flag to clear (ADR 0005).
+
+## Key files
 
 ```
-prisma/schema.prisma        โมเดลข้อมูล (เงินเป็น integer สตางค์)
-src/lib/calc/engine.ts      เครื่องคำนวณยอด (pure, มีเทสต์)
-src/lib/render/             Handlebars → HTML → Chromium → tagged PDF
-src/templates/quotation-default.hbs  แบบฟอร์มค่าเริ่มต้น (ต้นฉบับ)
-scripts/compare-fidelity.ts เทียบผลลัพธ์กับเอกสารอ้างอิง
+prisma/schema.prisma                 Data model (money as integer satang)
+src/lib/calc/engine.ts               Totals engine (pure, unit-tested)
+src/lib/render/                      Handlebars → HTML → Chromium → tagged PDF
+src/templates/quotation-default.hbs  The built-in template (source of truth)
+scripts/compare-fidelity.ts          Diffs rendered output against the reference PDFs
+scripts/a11y-walkthrough.ts          Scripted screen-reader-oriented end-to-end walkthrough
 ```
 
-## เครดิตฟอนต์
+## Font credit
 
-CS ChatThai โดย CS@nok เผยแพร่ผ่าน [f0nt.com](https://www.f0nt.com/release/cs-chatthai/)
-ใช้ได้ฟรีทั้งงานส่วนตัวและเชิงพาณิชย์ตามสัญญาอนุญาตของผู้สร้าง (ห้ามขายไฟล์ฟอนต์แยก)
+CS ChatThai by CS@nok, released via [f0nt.com](https://www.f0nt.com/release/cs-chatthai/).
+Free for personal and commercial use under the author's licence (the font files may not be resold on their own).
